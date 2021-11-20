@@ -6,6 +6,10 @@ const fs = require('fs').promises
 const BCHJS = require('@psf/bch-js')
 const Conf = require('conf')
 
+const { Signature } = require('avalanche/dist/common/credentials')
+const avm = require('avalanche/dist/apis/avm')
+const createHash = require('create-hash')
+
 let _this // Global variable points at instance of this Class.
 
 class WalletUtil {
@@ -13,6 +17,11 @@ class WalletUtil {
     this.fs = fs
     this.bchjs = new BCHJS()
     this.conf = new Conf()
+
+    this.Signature = Signature
+    this.avm = avm
+    this.avm = avm
+    this.createHash = createHash
 
     _this = this
   }
@@ -105,6 +114,46 @@ class WalletUtil {
     }
 
     return e2eeMnemonic
+  }
+
+  /**
+   * This method assumes that all the utxos have only one associated address
+   * @param {avm.UnsignedTx} tx
+   * @param {KeyChain} keychain
+   * @param {Object} reference
+   * @param {Credential} credentials
+   */
+  partialySignTx (walletData, tx, keychain, reference = {}, oldCredentials = []) {
+    const txBuffer = tx.toBuffer()
+    const msg = Buffer.from(this.createHash('sha256').update(txBuffer).digest())
+    const credentials = [...oldCredentials]
+
+    const inputs = tx.getTransaction().getIns()
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i]
+      const cred = this.avm.SelectCredentialClass(input.getInput().getCredentialID())
+
+      const inputid = input.getUTXOID()
+
+      try {
+        const source = walletData.tokens.xchain.parseAddress(reference[inputid])
+        const keypair = keychain.getKey(source)
+        const signval = keypair.sign(msg)
+        const sig = new this.Signature()
+        sig.fromBuffer(signval)
+        cred.addSignature(sig)
+
+        console.log(`input ${i}: Successfully signed, ( ${inputid} signed with ${reference[inputid]} )`)
+        credentials[i] = cred
+      } catch (error) {
+        console.log(`input ${i}: Skipping, address is not in the keychain, ( ${inputid} )`)
+
+        if (!credentials[i]) {
+          credentials[i] = cred
+        }
+      }
+    }
+    return new this.avm.Tx(tx, credentials)
   }
 }
 

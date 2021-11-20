@@ -28,7 +28,7 @@ class WalletCreate extends Command {
 
       if (!flags.description) flags.description = ''
 
-      const result = await this.createWallet(filename, flags.description)
+      const result = await this.createWallet(filename, flags.description, flags.priv)
       // console.log('result: ', result)
 
       return result
@@ -41,7 +41,7 @@ class WalletCreate extends Command {
   }
 
   // Create a new wallet file.
-  async createWallet (filename, desc) {
+  async createWallet (filename, desc, privateKey) {
     try {
       if (!filename || typeof filename !== 'string') {
         throw new Error('filename required.')
@@ -62,7 +62,7 @@ class WalletCreate extends Command {
       }
 
       // Wait for the wallet to be created.
-      this.avaxWallet = new this.AvaxWallet(undefined, advancedConfig)
+      this.avaxWallet = new this.AvaxWallet(privateKey, advancedConfig)
       await this.avaxWallet.walletInfoPromise
 
       // Create the initial wallet JSON object.
@@ -97,6 +97,7 @@ WalletCreate.description = 'Generate a new single address Wallet.'
 
 WalletCreate.flags = {
   name: flags.string({ char: 'n', description: 'Name of wallet' }),
+  priv: flags.string({ char: 'k', description: 'key' }),
   description: flags.string({
     char: 'd',
     description: 'Description of the wallet'
